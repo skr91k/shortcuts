@@ -86,19 +86,61 @@ gitt() {
         git add . && git commit -m "$*" && git push
     fi
 }
-bd() {
-    echo "Running: npm run build && firebase deploy --only hosting"
-    npm run build && firebase deploy --only hosting
+function bd {
+    local msg="${*:-auto commit on deploy}"
+    echo "Running: npm run build && firebase deploy --only hosting && git add . && git commit -m \"$msg\" && git push"
+    npm run build && firebase deploy --only hosting && git add . && git commit -m "$msg" && git push
 }
-ba() {
+alias bd='noglob bd'
+function ba {
     if [ -z "$1" ]; then echo "Usage: ba <url>"; return 1; fi
     echo "Running: yt-dlp -f bestaudio \"$1\""
     yt-dlp -f bestaudio -o "$HOME/Downloads/%(title)s.%(ext)s" "$1"
 }
 alias ba='noglob ba'
-bv() {
+function bv {
     if [ -z "$1" ]; then echo "Usage: bv <url>"; return 1; fi
     echo "Running: yt-dlp -f bestvideo+bestaudio \"$1\""
     yt-dlp -f "bestvideo+bestaudio" -o "$HOME/Downloads/%(title)s.%(ext)s" "$1"
 }
 alias bv='noglob bv'
+function uz {
+    local repo="$HOME/.shortcuts"
+    echo "Running: source ~/.zshrc"
+    source ~/.zshrc || return 1
+    if [ ! -d "$repo/.git" ]; then
+        git clone https://github.com/skr91k/shortcuts.git "$repo" || return 1
+    fi
+    git -C "$repo" pull --rebase -q || return 1
+    cp ~/.zshrc "$repo/zshrc"
+    if git -C "$repo" diff --quiet -- zshrc && ! git -C "$repo" ls-files --others --exclude-standard | grep -q '^zshrc$'; then
+        echo "zshrc unchanged, nothing to push"
+        return 0
+    fi
+    local msg="${*:-update zshrc}"
+    echo "Running: git commit -m \"$msg\" && git push (in $repo)"
+    git -C "$repo" add zshrc && git -C "$repo" commit -q -m "$msg" && git -C "$repo" push -q
+}
+alias uz='noglob uz'
+ramdisk() {
+    if [ "$1" = "stop" ]; then
+        local found=0
+        for dev in $(hdiutil info | awk '/^image-path.*ram:\/\//{f=1} /^\/dev\/disk[0-9]+[[:space:]]/{if(f){print $1; f=0}}'); do
+            echo "Ejecting $dev"
+            diskutil eject "$dev" >/dev/null 2>&1 || hdiutil detach "$dev" -force >/dev/null 2>&1
+            found=1
+        done
+        [ $found -eq 0 ] && echo "No ramdisk volumes mounted." || echo "All ramdisks ejected."
+        return 0
+    fi
+    local mb=${1:-100}
+    if ! [[ "$mb" =~ ^[0-9]+$ ]]; then echo "Usage: ramdisk [size_mb|stop]"; return 1; fi
+    local sectors=$((mb * 2048))
+    local dev=$(hdiutil attach -nomount ram://$sectors | tr -d '[:space:]')
+    diskutil erasevolume HFS+ "RAMDisk" "$dev" >/dev/null || return 1
+    echo "Mounted ${mb}MB ramdisk at /Volumes/RAMDisk ($dev)"
+}
+source "$HOME/PROJECTS/SHAKIR_PROJECTS/adb-files/adbb.zsh"
+
+# Added by Antigravity IDE
+export PATH="/Users/shakir/.antigravity-ide/antigravity-ide/bin:$PATH"
