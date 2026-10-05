@@ -144,3 +144,58 @@ source "$HOME/PROJECTS/SHAKIR_PROJECTS/adb-files/adbb.zsh"
 
 # Added by Antigravity IDE
 export PATH="/Users/shakir/.antigravity-ide/antigravity-ide/bin:$PATH"
+
+# ── lfb: DATA file browser (local_filebrowser.py) behind a cloudflared tunnel ──
+#   lfb          start tunnel if not running, (re)start server, publish to RTDB, print /p link
+#   lfb status   show what is running + the current links
+#   lfb stop     stop server and tunnel
+lfb() {
+  local dir="$HOME/PROJECTS/SHAKIR_PROJECTS/server-code"
+  local rtdb="https://kline-data-default-rtdb.asia-southeast1.firebasedatabase.app/ptunnel"
+  local id url pub i
+  case "$1" in
+    stop)
+      pkill -f local_filebrowser.py; pkill -f lfb_tunnel.sh
+      pkill -f "cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8765"
+      echo "lfb stopped"; return ;;
+    status)
+      pgrep -f lfb_tunnel.sh >/dev/null && echo "tunnel : running" || echo "tunnel : stopped"
+      pgrep -f local_filebrowser.py >/dev/null && echo "server : running" || echo "server : stopped"
+      id=$(cat ~/.local_filebrowser_publish_id 2>/dev/null)
+      echo "rtdb   : $(curl -s -m 10 "$rtdb/$id.json")"
+      echo "link   : https://kline-data.web.app/p/$id"; return ;;
+  esac
+
+  # 1) tunnel — only if not already running (a restart would change the trycloudflare URL)
+  if ! pgrep -f lfb_tunnel.sh >/dev/null; then
+    echo "starting tunnel…"
+    (cd "$dir" && nohup ./lfb_tunnel.sh >/dev/null 2>&1 &)
+  else
+    echo "tunnel already running"
+  fi
+
+  # 2) server — always (re)start so code changes take effect; it publishes the tunnel URL itself
+  pkill -f local_filebrowser.py; sleep 1; pkill -9 -f local_filebrowser.py 2>/dev/null
+  (cd "$dir" && nohup .venv/bin/python -u local_filebrowser.py --no-tunnel > ~/lfb.out 2>&1 &)
+  echo "server started (log: ~/lfb.out)"
+
+  # 3) wait until the newest tunnel URL is up and published to RTDB
+  #    only a URL logged after the latest "starting tunnel" marker counts (older ones are dead),
+  #    and it must actually answer before we call it up
+  local up=""
+  for i in {1..60}; do
+    sleep 1
+    id=$(cat ~/.local_filebrowser_publish_id 2>/dev/null)
+    url=$(awk '/^=== .* starting tunnel/{u=""} match($0,/https:\/\/[a-z0-9-]+\.trycloudflare\.com/){u=substr($0,RSTART,RLENGTH)} END{print u}' ~/lfb_tunnel.log 2>/dev/null)
+    [[ -z "$url" ]] && continue
+    pub=$(curl -s -m 5 "$rtdb/$id.json" | tr -d '"')
+    [[ "$pub" == "$url" ]] || continue
+    curl -s -m 5 -o /dev/null -w '%{http_code}' "$url/isAvailable" | grep -q 200 && { up=1; break; }
+  done
+  if [[ -n "$up" ]]; then
+    echo "tunnel : $url"
+    echo "link   : https://kline-data.web.app/p/$id"
+  else
+    echo "not published yet — check ~/lfb.out and ~/lfb_tunnel.log, or run: lfb status"
+  fi
+}
