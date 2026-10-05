@@ -149,11 +149,20 @@ export PATH="/Users/shakir/.antigravity-ide/antigravity-ide/bin:$PATH"
 #   lfb          start tunnel if not running, (re)start server, publish to RTDB, print /p link
 #   lfb status   show what is running + the current links
 #   lfb stop     stop server and tunnel
+#   lfb restart  stop both, retire the old /p/<id> link, start fresh with a NEW random id + new tunnel
 lfb() {
   local dir="$HOME/PROJECTS/SHAKIR_PROJECTS/server-code"
   local rtdb="https://kline-data-default-rtdb.asia-southeast1.firebasedatabase.app/ptunnel"
   local id url pub i
   case "$1" in
+    restart)
+      id=$(cat ~/.local_filebrowser_publish_id 2>/dev/null)
+      lfb stop
+      if [[ -n "$id" ]]; then
+        curl -s -m 10 -X DELETE "$rtdb/$id.json" >/dev/null && echo "old link retired: https://kline-data.web.app/p/$id"
+      fi
+      rm -f ~/.local_filebrowser_publish_id   # the server makes a new random id on start
+      sleep 2; lfb; return ;;
     stop)
       pkill -f local_filebrowser.py; pkill -f lfb_tunnel.sh
       pkill -f "cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8765"
