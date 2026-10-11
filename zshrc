@@ -209,4 +209,4 @@ lfb() {
   fi
 }
 
-alias bcrun='cd /Users/shakir/PROJECTS/SHAKIR_PROJECTS/bcnew_0 && ./gradlew :desktop:jvmRun -DmainClass=MainKt'
+alias rd='cd /Users/shakir/PROJECTS/SHAKIR_PROJECTS/bcnew_0 && IsRunningDebug=true ./gradlew :desktop:jvmRun -DmainClass=MainKt'
