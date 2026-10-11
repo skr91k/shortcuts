@@ -208,3 +208,5 @@ lfb() {
     echo "not published yet — check ~/lfb.out and ~/lfb_tunnel.log, or run: lfb status"
   fi
 }
+
+alias bcrun='cd /Users/shakir/PROJECTS/SHAKIR_PROJECTS/bcnew_0 && ./gradlew :desktop:jvmRun -DmainClass=MainKt'
